@@ -2,10 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 
+from app.api.epochs import router as epochs_router
+from app.api.elements import router as elements_router
+
 app = FastAPI(title=settings.API_TITLE)
 
 origins = [o.strip() for o in settings.API_ORIGINS.split(",")] if settings.API_ORIGINS else ["*"]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -17,3 +19,6 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+app.include_router(epochs_router)
+app.include_router(elements_router)
