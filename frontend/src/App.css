@@ -1,42 +1,119 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+
+.title-img {
+  width: 1480px;
+  height: 900px;
+  margin-top: -65px;
+  position: relative;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;       
+  -webkit-user-drag: none; 
+  -webkit-user-select: none;
+}
+
+.cosmic-viewer {
+  position: relative;
+  font-size: 70px;
+  z-index: 20;
+  margin-top: -670px;
   text-align: center;
+  background: linear-gradient(to bottom, #00b4ff, #ffffff);
+  background-clip: text;
+  color: transparent;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.start-button {
+  width: 240px;
+  height: 60px;
+  font-size: 28px;
+  margin-left: 600px;
+  margin-top: 400px;
+  position: relative;
+  z-index: 20;
+  background: linear-gradient(to top, #000000, #001f6b, #000000);
+  padding-bottom: 50px;
+  color: white;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(0, 180, 255, 0.3);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.start-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(0, 180, 255, 0.6);
 }
 
-.card {
-  padding: 2em;
+
+.underbar {
+  width: 1480px;
+  height: 70px;
+  background-color: black;
 }
 
-.read-the-docs {
-  color: #888;
+.time-insert {
+  background-color: darkblue;
+  color: white;
+  margin-top: 15px;
+  margin-left: 20px;
+}
+
+.time-insert-modal {
+  background-color: aliceblue;
+  width: 400px;
+  height: 200px;
+  margin-top: -600px;
+  margin-left: 500px;
+  border-radius: 10px;
+  padding: 15px 15px;
+  color: black;
+  border: 1px solid black;
+  box-shadow: 5px 5px 3px gray;
+}
+
+.time-insert-modal-year {
+  display: flex;
+  width: 80px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px black solid;
+  margin-left: 0px;
+}
+
+.time-insert-modal-minute {
+  display: flex;
+  width: 80px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px black solid;
+  margin-left: 140px;
+  margin-top: -23px;
+}
+
+.accept-button {
+  display: flex;
+  width: 80px;
+  margin-left: 250px;
+  margin-top: 60px;
+  padding-left: 25px;
+  background-color: yellowgreen;
+  border: 1px black solid;
+}
+
+.cancle-button {
+  display: flex;
+  width: 80px;
+  margin-top: -40px;
+  margin-left: 30px;
+  padding-left: 25px;
+  background-color: rgb(199, 14, 14);
+  border: 1px black solid;
+}
+
+.model-render-div {
+  background-color: beige;
+  width: 1480px;
+  height: 760px;
 }
