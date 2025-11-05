@@ -8,16 +8,14 @@ export default function MainPage() {
     const [displayText, setDisplayText] = useState("");
 
     const handleApply = () => {
-        // 입력값이 없을 경우 경고
         if (!year && !minute) {
             alert("년 또는 분 중 하나 이상을 입력해주세요!");
             return;
         }
 
-        // 렌더링할 문장 생성
         const text = `${year ? `${year}년 ` : ""}${minute ? `${minute}분` : ""} 후의 우주`;
         setDisplayText(text);
-        setShowModal(false); // 모달 닫기
+        setShowModal(false);
     };
 
     return (
@@ -75,3 +73,4 @@ export default function MainPage() {
         </>
     );
 }
+

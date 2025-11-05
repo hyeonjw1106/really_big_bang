@@ -48,7 +48,7 @@
 
 
 .underbar {
-  width: 1480px;
+  width: 1460px;
   height: 70px;
   background-color: black;
 }
@@ -114,6 +114,7 @@
 
 .model-render-div {
   background-color: beige;
-  width: 1480px;
+  width: 1460px;
   height: 760px;
+  margin-top: -35px;
 }
