@@ -14,6 +14,8 @@ function StartPage() {
       .then((data) => setStatus(data.status))
       .catch(() => setStatus("Error"));
   }, []);
+  console.log("정상작동")
+
 
   return (
     <div className="start-div">
@@ -37,4 +39,5 @@ export default function App() {
     </Router>
   );
 }
+
 

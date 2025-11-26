@@ -17,6 +17,7 @@ export default function MainPage() {
         setDisplayText(text);
         setShowModal(false);
     };
+    console.log("정상작동")
 
     return (
         <>
@@ -73,4 +74,6 @@ export default function MainPage() {
         </>
     );
 }
+
+
 
