@@ -4,6 +4,8 @@ from app.core.config import settings
 
 from app.api.epochs import router as epochs_router
 from app.api.elements import router as elements_router
+from app.api.renders import router as renders_router
+from app.api.events import router as events_router
 
 app = FastAPI(title=settings.API_TITLE)
 
@@ -22,3 +24,5 @@ def health():
 
 app.include_router(epochs_router)
 app.include_router(elements_router)
+app.include_router(renders_router)
+app.include_router(events_router)
