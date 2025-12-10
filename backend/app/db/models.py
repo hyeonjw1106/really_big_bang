@@ -63,6 +63,7 @@ class CosmicEvent(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(160), unique=True)
     description: Mapped[str | None] = mapped_column(Text)
+    time_range: Mapped[str | None] = mapped_column(String(120))
     category: Mapped[str | None] = mapped_column(String(80))
     time_norm: Mapped[float] = mapped_column(Float, index=True)
     media_url: Mapped[str | None] = mapped_column(String(255))

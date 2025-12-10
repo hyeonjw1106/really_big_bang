@@ -1,76 +1,211 @@
 import "./App.css";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 export default function MainPage() {
-    const [showModal, setShowModal] = useState(false);
-    const [year, setYear] = useState("");
-    const [minute, setMinute] = useState("");
-    const [displayText, setDisplayText] = useState("");
+    const [events, setEvents] = useState([]);
+    const [scenes, setScenes] = useState([]);
+    const [selectedEvent, setSelectedEvent] = useState(null);
+    const [selectedSceneId, setSelectedSceneId] = useState(null);
+    const [job, setJob] = useState(null);
+    const [jobMessage, setJobMessage] = useState("");
+    const [renderUrl, setRenderUrl] = useState("");
+    const [loading, setLoading] = useState(false);
+    const pollTimer = useRef(null);
 
-    const handleApply = () => {
-        if (!year && !minute) {
-            alert("년 또는 분 중 하나 이상을 입력해주세요!");
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const [evRes, scRes] = await Promise.all([
+                    fetch(`${API_BASE}/events`),
+                    fetch(`${API_BASE}/renders/scenes`),
+                ]);
+                const evData = await evRes.json();
+                const scData = await scRes.json();
+                setEvents(evData);
+                setScenes(scData);
+                if (evData.length) setSelectedEvent(evData[0]);
+                if (scData.length) setSelectedSceneId(scData[0].id);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        load();
+        return () => {
+            if (pollTimer.current) clearTimeout(pollTimer.current);
+            if (renderUrl) URL.revokeObjectURL(renderUrl);
+        };
+    }, [renderUrl]);
+
+    const currentTimeLabel = useMemo(() => {
+        if (!selectedEvent) return "이벤트를 선택하세요";
+        const n = (selectedEvent.time_norm * 100).toFixed(3);
+        return `${selectedEvent.title} · 정규화 ${n}%`;
+    }, [selectedEvent]);
+
+    const triggerRender = async () => {
+        if (!selectedEvent) {
+            alert("렌더할 이벤트를 선택하세요.");
             return;
         }
+        if (!selectedSceneId) {
+            alert("씬을 업로드하거나 기본 씬을 선택하세요.");
+            return;
+        }
+        setLoading(true);
+        setJobMessage("렌더 요청 중...");
+        try {
+            const res = await fetch(`${API_BASE}/events/${selectedEvent.id}/render?scene_id=${selectedSceneId}`, {
+                method: "POST",
+            });
+            if (!res.ok) throw new Error("렌더 요청 실패");
+            const data = await res.json();
+            setJob(data);
+            setJobMessage("큐에 등록되었습니다. 처리 중...");
+            pollJob(data.id);
+        } catch (err) {
+            console.error(err);
+            setJobMessage("렌더 요청 실패");
+            setLoading(false);
+        }
+    };
 
-        const text = `${year ? `${year}년 ` : ""}${minute ? `${minute}분` : ""} 후의 우주`;
-        setDisplayText(text);
-        setShowModal(false);
+    const pollJob = async (jobId) => {
+        const poll = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/renders/${jobId}`);
+                if (!res.ok) throw new Error("상태 조회 실패");
+                const data = await res.json();
+                setJob(data);
+                setJobMessage(data.message || data.status);
+                if (data.status === "done") {
+                    await fetchRenderFile(jobId);
+                    setLoading(false);
+                    return;
+                }
+                if (data.status === "failed") {
+                    setLoading(false);
+                    return;
+                }
+                pollTimer.current = setTimeout(poll, 1200);
+            } catch (err) {
+                console.error(err);
+                setJobMessage("상태 확인 실패");
+                setLoading(false);
+            }
+        };
+        await poll();
+    };
+
+    const fetchRenderFile = async (jobId) => {
+        try {
+            const res = await fetch(`${API_BASE}/renders/${jobId}/file`);
+            if (!res.ok) throw new Error("결과를 가져오지 못했습니다.");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            setRenderUrl((prev) => {
+                if (prev) URL.revokeObjectURL(prev);
+                return url;
+            });
+            setJobMessage("렌더 완료");
+        } catch (err) {
+            console.error(err);
+            setJobMessage("결과를 가져오지 못했습니다.");
+        }
     };
 
     return (
-        <>
-            <div className="model-render-div">
-                <h1>{displayText}</h1>
-            </div>
-
-            <div className="underbar">
-                <button
-                    className="time-insert"
-                    onClick={() => setShowModal(true)}
-                >
-                    구체 시간 입력하기
+        <div className="page-shell">
+            <header className="hero">
+                <div>
+                    <p className="eyebrow">Time Cosmos</p>
+                    <h1>코스믹 이벤트를 선택하고 렌더를 실행하세요</h1>
+                    <p className="muted">
+                        쿼크 생성부터 원자, 은하 형성까지 주요 시점을 선택해 서버에서 블렌더 렌더(현재는 더미 PNG)로 확인합니다.
+                    </p>
+                    <div className="chip-row">
+                        <span className="chip">{currentTimeLabel}</span>
+                        {job && <span className="chip subtle">Job #{job.id} · {job.status}</span>}
+                    </div>
+                </div>
+                <button className="primary" onClick={triggerRender} disabled={loading}>
+                    {loading ? "렌더링 중..." : "렌더 실행"}
                 </button>
+            </header>
 
-                {showModal && (
-                    <div className="time-insert-modal">
-                        <h3>빅뱅이 일어난 후 얼마 후의 우주를 보고 싶나요?</h3>
-
-                        <div className="input-group">
-                            <input
-                                type="text"
-                                placeholder="년"
-                                className="time-insert-modal-year"
-                                value={year}
-                                onChange={(e) => setYear(e.target.value)}
-                            />
-                            <input
-                                type="text"
-                                placeholder="분"
-                                className="time-insert-modal-minute"
-                                value={minute}
-                                onChange={(e) => setMinute(e.target.value)}
-                            />
+            <main className="layout">
+                <section className="panel render">
+                    <div className="panel-head">
+                        <div>
+                            <p className="label">렌더 결과</p>
+                            <h3>{renderUrl ? "최신 렌더" : "렌더 대기 중"}</h3>
                         </div>
+                        <div className="status">{jobMessage || "결과가 여기 표시됩니다."}</div>
+                    </div>
+                    <div className="render-frame">
+                        {renderUrl ? (
+                            <img src={renderUrl} alt="Render output" className="render-img" />
+                        ) : (
+                            <div className="render-placeholder">
+                                <p>이벤트를 선택하고 렌더를 실행하세요.</p>
+                                <p className="muted">렌더 완료 시 이미지가 표시됩니다.</p>
+                            </div>
+                        )}
+                        {loading && <div className="render-overlay">렌더링 중...</div>}
+                    </div>
+                </section>
 
-                        <div className="button-group">
-                            <button
-                                className="accept-button"
-                                onClick={handleApply}
-                            >
-                                적용
-                            </button>
-                            <button
-                                className="cancle-button"
-                                onClick={() => setShowModal(false)}
-                            >
-                                취소
-                            </button>
+                <section className="panel events">
+                    <div className="panel-head">
+                        <div>
+                            <p className="label">코스믹 이벤트</p>
+                            <h3>큰 단계 타임라인</h3>
                         </div>
                     </div>
-                )}
-            </div>
-        </>
+                    <div className="event-list">
+                        {events.map((ev) => (
+                            <button
+                                key={ev.id}
+                                className={`event-card ${selectedEvent?.id === ev.id ? "active" : ""}`}
+                                onClick={() => setSelectedEvent(ev)}
+                            >
+                                <div className="event-title">{ev.title}</div>
+                                <div className="event-meta">
+                                    {ev.category || "unknown"} · time_norm {ev.time_norm}
+                                </div>
+                                <div className="event-desc">{ev.time_range || "시간대 정보 없음"}</div>
+                                <div className="event-desc">{ev.description || "설명 없음"}</div>
+                            </button>
+                        ))}
+                        {events.length === 0 && <p className="muted">시드 데이터를 로드하거나 이벤트를 추가하세요.</p>}
+                    </div>
+                </section>
+
+                <section className="panel scenes">
+                    <div className="panel-head">
+                        <div>
+                            <p className="label">블렌더 씬</p>
+                            <h3>업로드/기본 씬 선택</h3>
+                        </div>
+                    </div>
+                    <div className="scene-list">
+                        {scenes.map((scene) => (
+                            <button
+                                key={scene.id}
+                                className={`scene-card ${scene.id === selectedSceneId ? "active" : ""}`}
+                                onClick={() => setSelectedSceneId(scene.id)}
+                            >
+                                <div className="scene-title">{scene.name}</div>
+                                <div className="scene-meta">
+                                    #{scene.id} · {scene.original_name} · {scene.file_size ? `${(scene.file_size / 1_000_000).toFixed(2)}MB` : "크기 미상"}
+                                </div>
+                            </button>
+                        ))}
+                        {scenes.length === 0 && <p className="muted">/renders/scenes 로 씬을 업로드하세요.</p>}
+                    </div>
+                </section>
+            </main>
+        </div>
     );
 }
-

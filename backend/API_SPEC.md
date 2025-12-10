@@ -41,22 +41,23 @@
       "camera": "Camera"
     }
     ```
+  - `scene_id`가 없으면 서버가 placeholder 씬을 자동 생성/사용.
   - 응답: `RenderJobOut { id, scene_id, epoch_id, time_norm, status, message, output_path, params, created_at, updated_at }`  
-  - 동작: 상태 `queued` 로 Job 생성 후 비동기 처리 큐에 넣음. 현재 구현은 블렌더 연동 대신 더미 텍스트 파일을 생성해 `status=done` 으로 업데이트(실제 렌더러 연결 지점 표식).
+  - 동작: 상태 `queued` 로 Job 생성 후 비동기 처리 큐에 넣음. 현재 구현은 블렌더 연동 대신 더미 PNG를 생성해 `status=done` 으로 업데이트(실제 렌더러 연결 지점 표식).
 - `GET /renders?limit=50&offset=0`  
   렌더 Job 목록(최신순).
 - `GET /renders/{job_id}`  
   렌더 Job 상세 상태.
 - `GET /renders/{job_id}/file`  
-  `status=done` 인 Job 결과 파일 다운로드(현재는 텍스트 파일). 완료 전에는 400을 반환.
+  `status=done` 인 Job 결과 파일 다운로드(현재는 PNG). 완료 전에는 400을 반환.
 
 ## Cosmic Events(큰 단계 전용)
 - `GET /events?limit=50&offset=0`  
-  통합과학/코스믹 타임라인의 주요 이벤트 목록(쿼크 생성, 원자 형성 등) 반환. `time_norm`은 0~1 정규화된 이벤트 위치.
+  통합과학/코스믹 타임라인의 주요 이벤트 목록(전자·쿼크 생성, 양성자·중성자 형성, 수소/헬륨 원자핵·원자 형성 등) 반환. `time_norm`은 0~1 정규화된 이벤트 위치, `time_range`는 교과서식 시간대 표현.
 - `GET /events/{event_id}`  
   단일 이벤트 상세.
-- `POST /events/{event_id}/render?scene_id=1`  
-  이벤트의 `time_norm`/`epoch_id`를 사용해 렌더 Job 생성. 프론트는 해당 이벤트에 맞는 블렌더 파일(scene_id)을 지정해서 렌더링을 요청.
+- `POST /events/{event_id}/render?scene_id=1` (scene_id가 없으면 이벤트에 설정된 default_scene_id 또는 placeholder 사용)  
+  이벤트의 `time_norm`/`epoch_id`를 사용해 렌더 Job 생성. 현재는 블렌더 대신 더미 PNG를 만들어 결과를 반환하며, 추후 블렌더 렌더러로 교체 예정.
 
 ## 환경 변수
 - `DB_DSN`: Async DB 연결 문자열(예: `mysql+asyncmy://user:pwd@localhost:3306/cosmos`).

@@ -13,7 +13,7 @@ class SceneOut(BaseModel):
 
 
 class RenderJobCreate(BaseModel):
-    scene_id: int
+    scene_id: int | None = Field(default=None, description="없으면 기본 placeholder 씬 사용")
     epoch_id: int | None = Field(default=None, description="어느 epoch에 대응하는 렌더인지 선택")
     time_norm: float = Field(..., ge=0.0, le=1.0, description="0~1 정규화된 시간 값")
     resolution_x: int = Field(default=1280, ge=256, le=7680)

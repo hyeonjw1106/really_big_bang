@@ -11,6 +11,7 @@ class CosmicEventBase(BaseModel):
 class CosmicEventOut(CosmicEventBase):
     id: int
     category: str | None = None
+    time_range: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
