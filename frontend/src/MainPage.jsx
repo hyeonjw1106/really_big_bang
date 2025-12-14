@@ -5,9 +5,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 export default function MainPage() {
     const [events, setEvents] = useState([]);
-    const [scenes, setScenes] = useState([]);
     const [selectedEvent, setSelectedEvent] = useState(null);
-    const [selectedSceneId, setSelectedSceneId] = useState(null);
     const [job, setJob] = useState(null);
     const [jobMessage, setJobMessage] = useState("");
     const [renderUrl, setRenderUrl] = useState("");
@@ -17,16 +15,12 @@ export default function MainPage() {
     useEffect(() => {
         const load = async () => {
             try {
-                const [evRes, scRes] = await Promise.all([
+                const [evRes] = await Promise.all([
                     fetch(`${API_BASE}/events`),
-                    fetch(`${API_BASE}/renders/scenes`),
                 ]);
                 const evData = await evRes.json();
-                const scData = await scRes.json();
                 setEvents(evData);
-                setScenes(scData);
                 if (evData.length) setSelectedEvent(evData[0]);
-                if (scData.length) setSelectedSceneId(scData[0].id);
             } catch (err) {
                 console.error(err);
             }
@@ -34,6 +28,11 @@ export default function MainPage() {
         load();
         return () => {
             if (pollTimer.current) clearTimeout(pollTimer.current);
+        };
+    }, []);
+
+    useEffect(() => {
+        return () => {
             if (renderUrl) URL.revokeObjectURL(renderUrl);
         };
     }, [renderUrl]);
@@ -49,14 +48,10 @@ export default function MainPage() {
             alert("렌더할 이벤트를 선택하세요.");
             return;
         }
-        if (!selectedSceneId) {
-            alert("씬을 업로드하거나 기본 씬을 선택하세요.");
-            return;
-        }
         setLoading(true);
         setJobMessage("렌더 요청 중...");
         try {
-            const res = await fetch(`${API_BASE}/events/${selectedEvent.id}/render?scene_id=${selectedSceneId}`, {
+            const res = await fetch(`${API_BASE}/events/${selectedEvent.id}/render`, {
                 method: "POST",
             });
             if (!res.ok) throw new Error("렌더 요청 실패");
@@ -182,29 +177,6 @@ export default function MainPage() {
                     </div>
                 </section>
 
-                <section className="panel scenes">
-                    <div className="panel-head">
-                        <div>
-                            <p className="label">블렌더 씬</p>
-                            <h3>업로드/기본 씬 선택</h3>
-                        </div>
-                    </div>
-                    <div className="scene-list">
-                        {scenes.map((scene) => (
-                            <button
-                                key={scene.id}
-                                className={`scene-card ${scene.id === selectedSceneId ? "active" : ""}`}
-                                onClick={() => setSelectedSceneId(scene.id)}
-                            >
-                                <div className="scene-title">{scene.name}</div>
-                                <div className="scene-meta">
-                                    #{scene.id} · {scene.original_name} · {scene.file_size ? `${(scene.file_size / 1_000_000).toFixed(2)}MB` : "크기 미상"}
-                                </div>
-                            </button>
-                        ))}
-                        {scenes.length === 0 && <p className="muted">/renders/scenes 로 씬을 업로드하세요.</p>}
-                    </div>
-                </section>
             </main>
         </div>
     );
