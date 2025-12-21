@@ -31,13 +31,7 @@ async def render_event(event_id: int, scene_id: int | None = None, s: AsyncSessi
     if not ev:
         raise HTTPException(status_code=404, detail="event not found")
 
-    scene_lookup_id = scene_id or ev.default_scene_id
-    scene = None
-    if scene_lookup_id:
-        scene = await s.get(SceneFile, scene_lookup_id)
-    if not scene:
-        # fallback: placeholder scene 생성/사용
-        scene = await get_or_create_placeholder_scene(s)
+    scene = await _resolve_scene_for_event(s, ev, scene_id)
 
     job = RenderJob(
         scene_id=scene.id,
@@ -58,3 +52,41 @@ async def render_event(event_id: int, scene_id: int | None = None, s: AsyncSessi
 
     await enqueue_render_job(job.id)
     return await s.get(RenderJob, job.id)
+
+
+# 이벤트 제목별로 씬을 자동 매핑한다.
+# 사용자가 scene_id를 주면 우선 사용하고, 없으면 제목 기반 매핑 → default_scene → placeholder 순.
+async def _resolve_scene_for_event(session: AsyncSession, ev: CosmicEvent, scene_id: int | None) -> SceneFile:
+    if scene_id:
+        scene = await session.get(SceneFile, scene_id)
+        if scene:
+            return scene
+
+    # 키워드 매핑
+    title = ev.title
+    key_to_scene_name = {
+        "쿼크 생성": "Scene 1",
+        "전자·쿼크 생성": "Scene 2",
+        "양성자/중성자 결합": "Scene 3",
+        "양성자·중성자 형성": "Scene 4",
+    }
+    target_name = None
+    for key, name in key_to_scene_name.items():
+        if key in title:
+            target_name = name
+            break
+
+    if target_name:
+        q = select(SceneFile).where(SceneFile.name.ilike(f"%{target_name}%")).order_by(SceneFile.id)
+        scene = (await session.execute(q)).scalar_one_or_none()
+        if scene:
+            return scene
+
+    # default_scene_id가 있으면 사용
+    if ev.default_scene_id:
+        scene = await session.get(SceneFile, ev.default_scene_id)
+        if scene:
+            return scene
+
+    # 아무것도 없으면 placeholder
+    return await get_or_create_placeholder_scene(session)

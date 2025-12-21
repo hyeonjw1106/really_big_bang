@@ -281,7 +281,7 @@ body {
   color: var(--accent-2);
 }
 
-.event-list, .scene-list {
+.event-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -290,7 +290,7 @@ body {
   padding-right: 4px;
 }
 
-.event-card, .scene-card {
+.event-card {
   width: 100%;
   text-align: left;
   padding: 10px 12px;
@@ -302,17 +302,17 @@ body {
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
-.event-card.active, .scene-card.active {
+.event-card.active {
   border-color: var(--accent);
   box-shadow: 0 10px 20px rgba(0, 225, 255, 0.16);
   transform: translateY(-1px);
 }
 
-.event-title, .scene-title {
+.event-title {
   font-weight: 700;
 }
 
-.event-meta, .scene-meta {
+.event-meta {
   color: var(--muted);
   font-size: 13px;
 }
