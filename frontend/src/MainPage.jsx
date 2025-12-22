@@ -1,5 +1,6 @@
 import "./App.css";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Viewer from "./components/Viewer";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -49,6 +50,7 @@ export default function MainPage() {
             return;
         }
         setLoading(true);
+        setRenderUrl("");
         setJobMessage("렌더 요청 중...");
         try {
             const res = await fetch(`${API_BASE}/events/${selectedEvent.id}/render`, {
@@ -117,7 +119,7 @@ export default function MainPage() {
                     <p className="eyebrow">Time Cosmos</p>
                     <h1>코스믹 이벤트를 선택하고 렌더를 실행하세요</h1>
                     <p className="muted">
-                        쿼크 생성부터 원자, 은하 형성까지 주요 시점을 선택해 서버에서 블렌더 렌더(현재는 더미 PNG)로 확인합니다.
+                        쿼크 생성부터 원자, 은하 형성까지 주요 시점을 선택해 서버에서 3D 모델(.glb)을 생성하고 인터랙티브 뷰어로 확인합니다.
                     </p>
                     <div className="chip-row">
                         <span className="chip">{currentTimeLabel}</span>
@@ -125,7 +127,7 @@ export default function MainPage() {
                     </div>
                 </div>
                 <button className="primary" onClick={triggerRender} disabled={loading}>
-                    {loading ? "렌더링 중..." : "렌더 실행"}
+                    {loading ? "처리 중..." : "3D 모델 생성"}
                 </button>
             </header>
 
@@ -134,20 +136,20 @@ export default function MainPage() {
                     <div className="panel-head">
                         <div>
                             <p className="label">렌더 결과</p>
-                            <h3>{renderUrl ? "최신 렌더" : "렌더 대기 중"}</h3>
+                            <h3>{renderUrl ? "인터랙티브 3D 모델" : "3D 모델 대기 중"}</h3>
                         </div>
                         <div className="status">{jobMessage || "결과가 여기 표시됩니다."}</div>
                     </div>
                     <div className="render-frame">
+                        {loading && !renderUrl && <div className="render-overlay">모델 생성 중...</div>}
                         {renderUrl ? (
-                            <img src={renderUrl} alt="Render output" className="render-img" />
+                            <Viewer url={renderUrl} />
                         ) : (
                             <div className="render-placeholder">
                                 <p>이벤트를 선택하고 렌더를 실행하세요.</p>
-                                <p className="muted">렌더 완료 시 이미지가 표시됩니다.</p>
+                                <p className="muted">완료 시 여기에 3D 모델이 표시됩니다.</p>
                             </div>
                         )}
-                        {loading && <div className="render-overlay">렌더링 중...</div>}
                     </div>
                 </section>
 

@@ -215,6 +215,8 @@ body {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 16px;
+  flex-grow: 1;
+  min-height: 0; /* Prevents grid from overflowing flex parent in some cases */
 }
 
 .panel {
@@ -223,6 +225,9 @@ body {
   border-radius: 14px;
   padding: 14px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  display: flex; /* Allow children to be controlled by flex */
+  flex-direction: column;
+  min-height: 0; /* Prevents grid items from overflowing */
 }
 
 .panel-head {
@@ -230,6 +235,7 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+  flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 .label {
@@ -252,6 +258,7 @@ body {
   border: 1px solid var(--border);
   min-height: 420px;
   overflow: hidden;
+  flex-grow: 1; /* Make it fill the available space in the panel */
 }
 
 .render-img {

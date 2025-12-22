@@ -9,8 +9,6 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from PIL import Image, ImageDraw, ImageFont
-
 from app.core.config import settings
 from app.core.db import get_session, SessionLocal
 from app.core.storage import ensure_subdir
@@ -65,32 +63,30 @@ async def enqueue_render_job(job_id: int):
             return
 
         job.status = "processing"
-        job.message = "블렌더 렌더링 준비"
+        job.message = "GLTF(.glb) 변환 준비"
         job.updated_at = datetime.utcnow()
         await session.commit()
 
-        payload = {
-            "scene_id": job.scene_id,
-            "epoch_id": job.epoch_id,
-            "time_norm": job.time_norm,
-            "params": job.params or {},
-        }
-
-        res_x = int(job.params.get("resolution", {}).get("x", 1280)) if job.params else 1280
-        res_y = int(job.params.get("resolution", {}).get("y", 720)) if job.params else 720
-        res_x = max(256, min(res_x, 3840))
-        res_y = max(256, min(res_y, 2160))
-
         render_dir = ensure_subdir("renders")
         scene = await session.get(SceneFile, job.scene_id)
-        blender_ok, output_path = await _render_with_blender(job, scene, render_dir, res_x, res_y)
+        
+        if not scene:
+            job.status = "failed"
+            job.message = f"원본 Scene 파일(id:{job.scene_id})을 찾을 수 없습니다."
+            job.updated_at = datetime.utcnow()
+            await session.commit()
+            return
 
-        if not blender_ok:
-            output_path = await _draw_dummy(job, payload, res_x, res_y, render_dir)
+        export_ok, output_path = await _export_glb_with_blender(job, scene, render_dir)
 
-        job.status = "done"
-        job.message = "렌더 완료" if blender_ok else "블렌더 실패, 더미 이미지 생성"
-        job.output_path = str(output_path)
+        if export_ok and output_path:
+            job.status = "done"
+            job.message = "GLB 변환 완료"
+            job.output_path = str(output_path)
+        else:
+            job.status = "failed"
+            job.message = "GLB 변환 실패"
+
         job.updated_at = datetime.utcnow()
         await session.commit()
 
@@ -140,9 +136,7 @@ async def create_render_job(payload: RenderJobCreate, s: AsyncSession = Depends(
             raise HTTPException(status_code=404, detail="epoch not found")
 
     params = {
-        "resolution": {"x": payload.resolution_x, "y": payload.resolution_y},
-        "format": payload.format,
-        "camera": payload.camera,
+        "format": "glb",
     }
     job = RenderJob(
         scene_id=scene.id,
@@ -185,130 +179,69 @@ async def download_render_file(job_id: int, s: AsyncSession = Depends(get_sessio
     if not path.exists():
         raise HTTPException(status_code=404, detail="결과 파일을 찾을 수 없습니다.")
 
-    media_type = "image/png" if path.suffix.lower() == ".png" else "application/octet-stream"
+    media_type = "application/octet-stream"
+    if path.suffix.lower() == ".png":
+        media_type = "image/png"
+    elif path.suffix.lower() == ".glb":
+        media_type = "model/gltf-binary"
+        
     return FileResponse(path=path, media_type=media_type, filename=path.name)
 
 
-async def _render_with_blender(job: RenderJob, scene: SceneFile, render_dir: Path, res_x: int, res_y: int) -> tuple[bool, Path | None]:
-    """Blender CLI 호출. 성공 시 (True, output_path), 실패 시 (False, None)"""
+async def _export_glb_with_blender(job: RenderJob, scene: SceneFile, render_dir: Path) -> tuple[bool, Path | None]:
+    """Blender CLI를 호출하여 .glb 파일을 익스포트합니다. 성공 시 (True, output_path), 실패 시 (False, None)"""
     blender_bin = settings.BLENDER_BIN or "blender"
     scene_path = Path(scene.file_path).resolve()
     render_dir = render_dir.resolve()
-    output_base = render_dir / f"{job.id}"
-    fmt = (job.params.get("format") if job.params else "PNG") or "PNG"
-    fmt = fmt.upper()
-    ext = fmt.lower()
-
-    camera_cmd = ""
-    if job.params and job.params.get("camera"):
-        cam_name = job.params["camera"]
-        camera_cmd = f"s=bpy.context.scene; cam=bpy.data.objects.get('{cam_name}');\nif cam: s.camera=cam;"
-    python_expr = (
-        "import bpy;"
-        f"s=bpy.context.scene; s.render.resolution_x={res_x}; s.render.resolution_y={res_y};"
-        f"{camera_cmd}"
-    )
+    output_path = render_dir / f"{job.id}.glb"
+    
+    # core/export_gltf.py 스크립트의 경로를 찾습니다.
+    exporter_script_path = Path(__file__).parent.parent / "core" / "export_gltf.py"
+    
+    if not scene_path.exists():
+        print(f"Blender export failed for job {job.id}: Scene file not found at {scene_path}")
+        return False, None
+    
+    if not exporter_script_path.exists():
+        print(f"Blender export failed for job {job.id}: Exporter script not found at {exporter_script_path}")
+        return False, None
 
     cmd = [
         blender_bin,
-        "-b",
+        "-b",  # 백그라운드 모드
         str(scene_path),
-        "--python-expr",
-        python_expr,
-        "-o",
-        str(output_base),
-        "-F",
-        fmt,
-        "-f",
-        "1",
+        "--python",
+        str(exporter_script_path),
+        "--",
+        str(output_path),
     ]
 
     try:
-        result = await asyncio.to_thread(subprocess.run, cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if result.stdout:
-            print(f"[blender stdout] job {job.id}: {result.stdout[-400:]}")
-        if result.stderr:
-            print(f"[blender stderr] job {job.id}: {result.stderr[-400:]}")
-        candidates = sorted(render_dir.glob(f"{job.id}*.{ext}"))
-        if candidates:
-            return True, candidates[0]
-    except Exception as exc:  # noqa: BLE001
-        print(f"Blender render failed for job {job.id}: {exc}")
-    return False, None
-
-
-async def _draw_dummy(job: RenderJob, payload: dict, res_x: int, res_y: int, render_dir: Path) -> Path:
-    output_path = render_dir / f"{job.id}.png"
-
-    def _draw_image():
-        import random
-
-        rng = random.Random()
-        rng.seed(f"{job.id}-{job.time_norm}")
-
-        img = Image.new("RGB", (res_x, res_y), color=(4, 6, 14))
-        draw = ImageDraw.Draw(img)
-
-        # 배경 그라데이션
-        for y in range(res_y):
-            ratio = y / max(res_y - 1, 1)
-            r = int(6 + 10 * ratio)
-            g = int(12 + 24 * ratio)
-            b = int(24 + 40 * ratio)
-            draw.line([(0, y), (res_x, y)], fill=(r, g, b))
-
-        # 별 뿌리기
-        star_count = 400
-        for _ in range(star_count):
-            x = rng.randint(0, res_x - 1)
-            y = rng.randint(0, res_y - 1)
-            brightness = rng.randint(150, 255)
-            size = 1 if rng.random() < 0.9 else 2
-            draw.ellipse([(x, y), (x + size, y + size)], fill=(brightness, brightness, brightness))
-
-        # 은하/링 효과
-        center = (res_x // 2, res_y // 2)
-        ring_color = (80, 180, 255)
-        for radius in range(80, min(res_x, res_y) // 2, 60):
-            draw.ellipse(
-                [
-                    (center[0] - radius, center[1] - radius // 2),
-                    (center[0] + radius, center[1] + radius // 2),
-                ],
-                outline=ring_color,
-                width=2,
-            )
-
-        # 이벤트 마커 (time_norm 기반)
-        tn = max(0.0, min(job.time_norm, 1.0))
-        marker_x = int(40 + tn * (res_x - 80))
-        marker_y = center[1]
-        draw.ellipse(
-            [(marker_x - 8, marker_y - 8), (marker_x + 8, marker_y + 8)],
-            fill=(255, 200, 120),
-            outline=(255, 240, 200),
-            width=2,
+        print(f"Executing Blender command for job {job.id}: {' '.join(cmd)}")
+        result = await asyncio.to_thread(
+            subprocess.run, 
+            cmd, 
+            check=True, 
+            capture_output=True, 
+            text=True
         )
-        draw.line([(40, marker_y), (res_x - 40, marker_y)], fill=(90, 140, 220), width=2)
-
-        font = ImageFont.load_default()
-        header = f"Render Job #{job.id}"
-        sub = f"time_norm={job.time_norm:.4f}  scene={job.scene_id}  epoch={job.epoch_id}"
-        event_title = job.params.get("event_title") if job.params else None
-        event_cat = job.params.get("event_category") if job.params else None
-        event_range = job.params.get("event_time_range") if job.params else None
-        event_desc = job.params.get("event_description") if job.params else None
-        draw.text((24, 20), header, fill=(255, 255, 255), font=font)
-        draw.text((24, 40), sub, fill=(200, 220, 255), font=font)
-        if event_title or event_cat:
-            draw.text((24, 60), f"event: {event_title or ''} [{event_cat or ''}]", fill=(255, 220, 180), font=font)
-        if event_range:
-            draw.text((24, 76), f"time: {event_range}", fill=(200, 240, 200), font=font)
-        if event_desc:
-            draw.text((24, 92), f"{event_desc}", fill=(190, 190, 190), font=font)
-        draw.text((24, res_y - 40), datetime.utcnow().isoformat() + "Z", fill=(140, 180, 255), font=font)
-
-        img.save(output_path, format="PNG")
-
-    await asyncio.to_thread(_draw_image)
-    return output_path
+        if result.stdout:
+            print(f"[blender stdout] job {job.id}:\n{result.stdout}")
+        if result.stderr:
+            print(f"[blender stderr] job {job.id}:\n{result.stderr}")
+        
+        if output_path.exists():
+            return True, output_path
+        else:
+            print(f"Blender export failed for job {job.id}: Output file not found after execution.")
+            return False, None
+            
+    except subprocess.CalledProcessError as exc:
+        print(f"Blender export subprocess failed for job {job.id} with exit code {exc.returncode}")
+        print(f"  command: {' '.join(exc.cmd)}")
+        print(f"  stdout: {exc.stdout}")
+        print(f"  stderr: {exc.stderr}")
+    except Exception as exc:
+        print(f"An unexpected error occurred during Blender export for job {job.id}: {exc}")
+        
+    return False, None
